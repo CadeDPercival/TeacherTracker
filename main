@@ -1,0 +1,383 @@
+from selenium import webdriver
+from selenium.webdriver import Keys
+import getpass
+from datetime import date, datetime
+from NLP import rateComment
+import pickle
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+import re
+from selenium.webdriver.common.by import By
+
+# Data Sets
+sentences = [
+    "Like most people are saying for Discrete here, Dr. Griffiths lectures are great. He often cracks a lot of jokes and covers the material very well. It's a pretty hard course, but he gives you the resources to succeed. Gives a good bit of homework, however the homeworks help you to learn a lot, especially for this class. 100% wish I took him sooner.",
+    "Prof. Griffiths seemed to be a great lecturer. He was engaging and it felt like I was learning. Though, despite doing all of the homework on time and studying 10hrs + per week, attending office hours, I still got an F in the class. I didn't give Griffiths a bad rating because it's probably not his fault that I'm not smart enough for the class.",
+    "Griffiths is the best professor I've ever had at KSU. He teaches well and is clearly passionate about math. Passing his class requires studying, but not a lot. I only studied a week before every exam, and passed all of them except the first one, which I did not study for. He also gives extra credit when it makes sense.",
+    "Although he teaches math, he is not a logical person at all. He favors some students over others. He is not respectful, and he grades very badly. There is no feedback on your grades. He is funny, but I think there are few students who want to have a funny teacher but does not appreciate the hard work of his students! Stay away if you can!",
+    "One of the toughest graders that I've ever had. There are SO few grades and most of them are tests (for which there is no curve). Would've failed horribly if I didn't withdraw. He's funny, he knows his stuff, but he doesn't communicate it well to those of us who don't love math.",
+    "At first I thought he was a chill professor and thought it was going to be a chill course, boy was I wrong. I started to realize throughout the semester he favors some students over others. Discrete Math is hard, but he never cared to explain any of the questions I asked them and brushed them aside. However he would answer the other students.",
+    "IF you LOVE math and don't mind how difficult calc is. Then he is a great pick for you. However, if your not already good at it and ONLY taking it because you have to DO NOT TAKE his class because you fail his DIFFICULT exams, and he will not make sure everyone gets the material. He will only teach the ones who are also in love with math.",
+    "Calc 2 is a very tough class. So be prepared to do your HW, take notes, and get Dr. G's help outside the class. You gotta attend the class every time and pay attention. Dr. G is an amazing professor, always ready to help you. He is hilarious and lightens up the mood when you are overwhelmed. His tests are straight forward and come from HW.",
+    "DO NOT TAKE HER ONLINE CLASS. I received A's in every single grade (quizzes, tests, extra tests) and missed TWO discussion posts, and received a D IN THIS CLASS. I'm sorry, but that is just ridiculous. I am highly disappointed in the lack of lectures; all I did was read the book and take the quizzes. I am a diligent student and never expected this",
+    "Dr. Murray cares greatly about her students! Very accessible outside of class - answers emails quickly. Very clear assignments and she is a quick grader. Class format is crystal clear; weekly assignments are posted from the first day of class. There is a midterm and a final. Dr. Murray gives extra credit assignments too in case you need it later.",
+    "Took online during the summer* Super easy 1 month 3 credit course. 4 weeks long with about 1-2 hours of HW every week. No reading required. Group Project is easy depending on your group and tests are 60 questions long and a breeze. No final and the last week we had minimal homework",
+    "WORST TEACHER I HAVE EVER HAD IN MY ENTIRE LIFE!!! He makes attendance mandatory for students, but then he doesn't show up for class half the time. He's arrogant and rude. He doesn't actually teach. He just rambles about things that have nothing to do with the class. I got an A in the class, so I'm not just saying this because I didn't do well.",
+    "Just plain awful professor! You cannot understand his lectures, and you have to rent all these movies and watch them, and then on the first test its was a timeline!!!",
+    "If you have him and a huge class you're screwed because he will not do discussion, which is stupid not to have in an english class, he never goes over what we have to do, doesn't communicate well with the class, and is always late. Questions on the test have a lot of things that HE thinks. I would NOT recommend him.",
+    "Prof Hill was a hard teacher yet a pretty enjoyable class. We only wrote 4 papers each semester and as long as you wrote them to make sense to the subject you get a good grade. His syllabus says attendance is mandatory, but I probably only went to about half of his classes and still received high marks. He will help you 1 on 1 as well.",
+    "If you have another choice, choose to take this with another professor. He tries to help but isn't very clear with how he teaches. His class is very hard even for students who do pretty well in math. If you struggle with math, take another professor. Don't sacrifice your GPA.",
+    "I don't understand why Coach Sims doesn't have a higher rating because he is a great professor!He makes math very easy to understand and gives you plenty of opportunities to make a good grade in his class!",
+    "Awesome teacher. Learn the material his way and you will be fine. Basic concepts and the tests and quizzes are easy. 8 quizzes and 3 tests and a final",
+    "I've never gotten anything below an A in math since I started college 3 years ago. Nice guy, but not a good math teacher at all. Retook this class with a different professor this semester and I got an A.",
+    "Good lecturer & All I can say is I wish the History Dept would assign him more courses to teach such as 2111!",
+    "His class is amazing. You can't help but learn materials in the class. The tests are all fill in the blank, no word bank or anything, so you really do have to study and come to class to take note.You HAVE to read the documents in order to pass the tests,but it's not really hard. You also have to go to a museum and write a 5 page paper. Easy peasy(:",
+    "GREAT PROFESSOR! I had no interest in history until I took his class. He gets so excited with his teaching that you can't help but get excited, too. Tests are fill in the blank but super easy. No dates to remember. likes lists and names. read the readings in book, just be able to recognize which reading by key words. I would take his class again.",
+    "Hes an average teacher at best. Doesnt really teach much out of the textbook. Usually would just discuss whatever he felt like that did not pertain to the tests. Stay away",
+    "AVOID!!!! I don't think he gets how much of a bad professor he is. He thinks he is being funny, but honestly, it's just really annoying because he does NOT teach. I plead that you avoid this professor unless you enjoy teaching yourself.",
+    "This professor does not teach. He makes you watch videos, and then you discuss them. He barely goes over any actual material, and you'll learn more from just reading yourself than actual class. Attendance isn't mandatory, but he does call out names for participation which is 10% of the overall grade. Doesn't give any help for studying.",
+    "Now that I'm in the middle of another bus prof's class, I realize that Prof Schulzke is a pretty neat dude. Tries to keep it interesting and will respect you if you respect him. Stay involved throughout the semester and enjoy the interactive game days he does! Would def take again (wishing I had)",
+    "Very knowledgeable prof. Tough class but he really tries to keep it interesting (ethical real world issues, games). Extremely fair and reasonable about grading. 10 out of 10 would take again.",
+    "Really enjoyed this class. He gives you a lot of real world applications and keeps lectures interesting even w/a bland topic like acct. Very knowledgeable, funny guy. Be respectful and be involved and you'll do great. Definitely would recommend and would take again.",
+    "If I remember correctly, he told stories in class that weren't relevant to what we were going to be tested on... Could of spent that time teaching us material that we could use on the test...",
+    "He just isn't a great professor. At first, I thought he wasn't that terrible but slowly as the semester went by he kept talking down to students. He will also tell you to do one thing one day and then deny that he said it. His class isn't impossible to pass, but he sure makes it a terrible learning experience"
+]
+labels = [
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative"]
+
+# init a countVectorizer obj to convert the sentences into a matrix of word frequencies
+vectorizer = CountVectorizer()
+
+# use the vectorizer to transform the sentences into a matrix of word frequencies
+X = vectorizer.fit_transform(sentences)
+
+# init a multinomialNB to train the model
+clf = MultinomialNB()
+
+# train the model
+clf.fit(X, labels)
+
+# save the vectorizer and clf objects to disk using pickle
+with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/vectorizer.pkl", "wb") as file:
+    pickle.dump(vectorizer, file)
+
+with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/clf.pkl", "wb") as file:
+    pickle.dump(clf, file)
+
+def rateComment(comment):
+    # load the vectorizer and clf objects from disk
+    with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/vectorizer.pkl", "rb") as file:
+        vectorizer = pickle.load(file)
+
+    with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/clf.pkl", "rb") as file:
+        clf = pickle.load(file)
+
+    new_X = vectorizer.transform([comment])
+    predicted_label = clf.predict(new_X)
+    return predicted_label[0]
+
+
+# Functions
+# Login to continue after the user logged in
+def loginUser():
+    getpass.getpass("Press Enter after you are done login in!")
+
+
+# Get the teacher names from the pop up
+def getTeachers():
+    # ask for the teachers and put thim into a list to get research from
+    teachers = []
+    quitLoop = True
+    print("Enter QUIT to quit")
+    # get the teachers through the input of the student
+    while quitLoop:
+        i = input("Enter a Teachers Name: \n")
+        print("Current Teachers: ")
+        if i == "QUIT":
+            quitLoop = False
+        else:
+            teachers.append(i)
+
+        print(*teachers, sep=", ")
+
+    researchTeachers(teachers)
+
+
+def researchTeachers(teachers):
+    # open a new tab and switch to it
+    originalWindow = driver.current_window_handle
+    driver.switch_to.new_window('tab')
+    driver.get("https://www.ratemyprofessors.com/")
+
+    # close the pop ups
+    driver.find_element(By.XPATH, "/html/body/div[5]/div/div/button").click()
+    input("Enter School and click enter to continue")
+
+    # find the search button and search for KSU
+    teacherSearchBar = driver.find_element(By.XPATH, "/html/body/div[2]/div/div/div[3]/div[2]/div[3]/div[2]/input")
+
+    # Search for teachers and pull data
+    for teacher in teachers:
+        print("-----------------")
+        print(f"{teacher} rating:")
+        teacherSearchBar.send_keys(teacher + Keys.ENTER)
+
+        # go into teacher
+        # try catch statement here
+        driver.implicitly_wait(10)
+        driver.find_element(By.XPATH, "/html/body/div[2]/div/div/div[4]/div[1]/div[1]/div[3]/a[1]").click()
+        rateProfessor()
+
+        # go to the new search bar
+        teacherSearchBar = driver.find_element(By.XPATH, "/html/body/div[2]/div/div/div[1]/div/header/div[2]/div[3]/div[1]/div[2]/div/div[1]/div[2]/input")
+        teacherSearchBar.clear()
+
+    # close window after its finished
+    driver.close()
+    driver.switch_to.window(originalWindow)
+
+
+def rateProfessor():
+    # get the student reviews
+    htmlList = driver.find_element(By.ID, "ratingsList")
+    studentList = htmlList.find_elements(By.TAG_NAME, "li")
+
+    # overall data collected
+    overallR = []
+
+    # regex patterns for the string
+    qualityPattern = r"QUALITY\s+(\d+\.\d+)"
+    difficultyPattern = r"DIFFICULTY\s+(\d+\.\d+)"
+    datePattern = r"(\w{3}\s\d{1,2}[a-z]{2},\s\d{4})"
+    gradePattern = r"Grade:\s*([\w\/]+)"
+    wtaPattern = r"Would Take Again:\s*(\w+)"
+
+    for studentReview in studentList:
+        text = studentReview.text
+
+        print(text)
+
+        if text.__contains__("QUALITY"):
+            # get the substring from the main string
+            quality = float(re.search(qualityPattern, text).group(1)[0])
+            difficulty = float(re.search(difficultyPattern, text).group(1)[0])
+            date = re.search(datePattern, text).group(1)
+
+            # if grade is there keep it, but if not just put a F cause of bias
+            grade = re.search(gradePattern, text)
+            if grade:
+                grade = grade.group(1)
+
+                # if the grade is not yet discovered, just put a B
+                if grade == "Not":
+                    grade = "B"
+                elif grade == "Drop/Withdrawal":
+                    grade = "F"
+            else:
+                grade = "F"
+
+            # would take again, if they have nothing, just put null
+            wta = re.search(wtaPattern, text)
+            if wta:
+                wta = wta.group(1)
+            else:
+                wta = "NULL"
+
+            # extract the long comment
+            lines = text.split('\n')
+            start_index = -1
+            for i, line in enumerate(lines):
+                if line.startswith('Grade:'):
+                    start_index = i
+                    break
+            if start_index >= 0:
+                longCommentLines = []
+                for line in lines[start_index+1:]:
+                    if line == '' or any(line.startswith(keyword) for keyword in ['QUALITY', 'DIFFICULTY', 'DATE', 'GRADE', 'WTA']):
+                        break
+                    longCommentLines.append(line)
+                longComment = ' '.join(longCommentLines).strip()
+            else:
+                longComment = ''
+
+            CR = commentR(longComment)
+
+            sr = studentRating(quality, CR, difficulty, date, grade, wta)
+            overallR.append(sr)
+
+    average = Average(overallR)
+    print("The Overall Rating of the professor is: " + str(round(average, 2)))
+    confidence(overallR)
+    print("-----------------")
+    print()
+
+
+# rate the comment
+def commentR(str):
+    rating = rateComment(str)
+
+    print()
+    print("Comment is " + rating)
+    print("-------")
+    if rating == "negative":
+        return 0.5
+    else:
+        return 1
+
+# gets the confidence level
+def confidence(overallR):
+    numOfR = len(overallR)
+    if numOfR <= 14:
+        print("Confidence Level is low")
+    elif 15 <= numOfR <= 25:
+        print("Confidence Level is Medium")
+    elif numOfR >= 26:
+        print("Confidence Level is High")
+
+
+# gets average for overall rating
+def Average(overallR):
+    return sum(overallR) / len(overallR)
+
+
+# student rating for overall rating
+def studentRating(quality, commentR, difficulty, reviewDate, grade, wta):
+    # quality rating with bias calculator
+    qRating = qualityRating(quality, grade)
+    dRating = diffAndWtaRating(difficulty, wta, grade)
+
+    # date stuff to deal with the date bias
+    dateMultiplier = float(0)
+    currentDate = date.today()
+    currentDateObj = datetime.combine(currentDate, datetime.min.time())
+    reviewDate = reviewDate.replace("st,", "")
+    reviewDate = reviewDate.replace("nd,", "")
+    reviewDate = reviewDate.replace("rd,", "")
+    reviewDate = reviewDate.replace("th,", "")
+    reviewDateConvert = datetime.strptime(reviewDate, "%b %d %Y")
+
+    dateDiff = currentDateObj - reviewDateConvert
+
+    # increments by 6 months to get out dated reviews
+    if 360 >= dateDiff.days >= 180:
+        dateMultiplier = float(.1)
+    elif 540 >= dateDiff.days >= 361:
+        dateMultiplier = float(.15)
+    elif 720 >= dateDiff.days >= 541:
+        dateMultiplier = float(.2)
+    elif dateDiff.days > 721:
+        dateMultiplier = float(.25)
+
+    rating = qRating + dRating
+    rating = rating / 2
+    reliabilityRating = (1 - rating) * dateMultiplier
+    finalRating = rating + reliabilityRating
+    return finalRating
+
+
+# quality rating
+def qualityRating(quality, grade):
+    # if the grade is high, its most likely biased
+    if grade == "A" and quality == 5:
+        gradeContrast = float(0.9)
+    else:
+        gradeContrast = float(1.0)
+
+    # multiply the gradeContrast with the rating
+    q = quality * 0.2
+    finalReturn = gradeContrast * q
+    return finalReturn
+
+
+# rates the bias of difficulty and wta
+def diffAndWtaRating(difficulty, wta, grade):
+    if grade == "F" or grade == "C":
+        gradeContrast = float(0.85)
+    else:
+        gradeContrast = float(1)
+
+    if difficulty == 5 or difficulty == 1:
+        d = float(0.95)
+    elif difficulty == 2 or difficulty == 4:
+        d = float(0.9)
+    else:
+        d = 1
+
+    finalDif = gradeContrast * d
+    # multiply the two and return
+    if wta == "No":
+        finalDif = finalDif * 0.5
+        return finalDif
+    else:
+        return finalDif
+
+
+def home():
+    # KSU login page for owl express
+    url = "https://ksufedhigh.kennesaw.edu/adfs/ls?SAMLRequest=fZHBboJAEIbvfQqydwEXNHYjGFtjamKjEeyhtxEGQWHX7izq41dFo00Tj5PMfPPn%2F%2FqDY1Vae9RUKBmwtu0yC2Wi0kKuA7aMx60eG4QvfYKq5DsxrE0uF%2FhTIxlrSITanO7elaS6Qh2h3hcJLhfTgOXG7Eg4jjqUeNxpJLK3KCUSHGxMa%2BH7nkOkKpCwRu2c%2BU4UzZg1OqELCeaS50bZUp1hmhfr%2FD8F0oyckpg1VjrBS8KAZVASMmsyChhwv9eFtNttZyvgr4iQeV6e4gY2WeafdmgORMUe71dENU4kGZAmYNzlXsv1Wm035q7wuej4tud2vpk118qoRJVvhWz6qrUUCqggIaFCEiYR0fBzKrjtilWzROIjjuet%2BSyKmfV1652fez%2BZkCSapp%2BzdtfHLGzEiEti%2FUh4DoCbOhbeJfSdR1h4Hf9KD38B&RelayState=%2Fc%2Fauth%2FSSB&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=BWt5ZaaAXwomYZCv%2Bilw1x3YCYbjXvcnl%2BZWxmxSl1N%2FHXAjZ0zoKTAouMowbPBy0kaVGsc49vJgKEqpGDMqBnE3AOxklFj2r5XyCdBYuElRGLTPSHcN9D2x5WrMz2D5yzW2%2BfJSneWI2AZ%2FkoGzGVIefhoYhjJpMx8JLGng2OTvRMh7LgjqGg3wywYQTNvppCRmYSsGWDIoMH8p0nA2ehW8GCVoLgppBEgKT9Q4WrirOQOoYCZTGkOC9i2KDf6TDuI6pLG4uyYd3ZBATHX7ocF5trJ3CXNRcMKp9ep2eUQ1cieM%2FCz1qXXM2OdsyNPuFxjOyM9nAq6lI8OPA5e9SA%3D%3D"
+
+    # Replace with your email and password
+    email = "cperciva@students.kennesaw.edu"
+    password = "000973321.Ksu"
+
+    # Set up the webdriver
+    driver.get(url)
+
+
+    # Find the email and password input fields and enter the credentials
+    emailField = driver.find_element(By.ID, "userNameInput")
+    emailField.send_keys(email)
+
+    passwordField = driver.find_element(By.ID, "passwordInput")
+    passwordField.send_keys(password)
+
+    loginButton = driver.find_element(By.ID, "submitButton")
+    loginButton.click()
+
+    # Wait until the user has access to the home page of owl express
+    loginUser()
+    searchBar = driver.find_element(By.NAME, "KEYWRD_IN")
+    searchBar.send_keys("degree works" + Keys.RETURN)
+
+    # find degree works link and click it
+    driver.find_element(By.LINK_TEXT, "DegreeWorks").click()
+
+    # get the required class with teachers
+    getTeachers()
+
+    # Wait for user input before quitting
+    input("Press any key to quit...")
+    driver.quit()
+
+driver = webdriver.Chrome()
+getTeachers()
+#home()
