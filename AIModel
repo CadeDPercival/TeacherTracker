@@ -1,0 +1,109 @@
+import re
+import string
+import nltk
+import pickle
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+
+# Data Sets
+sentences = [
+    "Like most people are saying for Discrete here, Dr. Griffiths lectures are great. He often cracks a lot of jokes and covers the material very well. It's a pretty hard course, but he gives you the resources to succeed. Gives a good bit of homework, however the homeworks help you to learn a lot, especially for this class. 100% wish I took him sooner.",
+    "Prof. Griffiths seemed to be a great lecturer. He was engaging and it felt like I was learning. Though, despite doing all of the homework on time and studying 10hrs + per week, attending office hours, I still got an F in the class. I didn't give Griffiths a bad rating because it's probably not his fault that I'm not smart enough for the class.",
+    "Griffiths is the best professor I've ever had at KSU. He teaches well and is clearly passionate about math. Passing his class requires studying, but not a lot. I only studied a week before every exam, and passed all of them except the first one, which I did not study for. He also gives extra credit when it makes sense.",
+    "Although he teaches math, he is not a logical person at all. He favors some students over others. He is not respectful, and he grades very badly. There is no feedback on your grades. He is funny, but I think there are few students who want to have a funny teacher but does not appreciate the hard work of his students! Stay away if you can!",
+    "One of the toughest graders that I've ever had. There are SO few grades and most of them are tests (for which there is no curve). Would've failed horribly if I didn't withdraw. He's funny, he knows his stuff, but he doesn't communicate it well to those of us who don't love math.",
+    "At first I thought he was a chill professor and thought it was going to be a chill course, boy was I wrong. I started to realize throughout the semester he favors some students over others. Discrete Math is hard, but he never cared to explain any of the questions I asked them and brushed them aside. However he would answer the other students.",
+    "IF you LOVE math and don't mind how difficult calc is. Then he is a great pick for you. However, if your not already good at it and ONLY taking it because you have to DO NOT TAKE his class because you fail his DIFFICULT exams, and he will not make sure everyone gets the material. He will only teach the ones who are also in love with math.",
+    "Calc 2 is a very tough class. So be prepared to do your HW, take notes, and get Dr. G's help outside the class. You gotta attend the class every time and pay attention. Dr. G is an amazing professor, always ready to help you. He is hilarious and lightens up the mood when you are overwhelmed. His tests are straight forward and come from HW.",
+    "DO NOT TAKE HER ONLINE CLASS. I received A's in every single grade (quizzes, tests, extra tests) and missed TWO discussion posts, and received a D IN THIS CLASS. I'm sorry, but that is just ridiculous. I am highly disappointed in the lack of lectures; all I did was read the book and take the quizzes. I am a diligent student and never expected this",
+    "Dr. Murray cares greatly about her students! Very accessible outside of class - answers emails quickly. Very clear assignments and she is a quick grader. Class format is crystal clear; weekly assignments are posted from the first day of class. There is a midterm and a final. Dr. Murray gives extra credit assignments too in case you need it later.",
+    "Took online during the summer* Super easy 1 month 3 credit course. 4 weeks long with about 1-2 hours of HW every week. No reading required. Group Project is easy depending on your group and tests are 60 questions long and a breeze. No final and the last week we had minimal homework",
+    "WORST TEACHER I HAVE EVER HAD IN MY ENTIRE LIFE!!! He makes attendance mandatory for students, but then he doesn't show up for class half the time. He's arrogant and rude. He doesn't actually teach. He just rambles about things that have nothing to do with the class. I got an A in the class, so I'm not just saying this because I didn't do well.",
+    "Just plain awful professor! You cannot understand his lectures, and you have to rent all these movies and watch them, and then on the first test its was a timeline!!!",
+    "If you have him and a huge class you're screwed because he will not do discussion, which is stupid not to have in an english class, he never goes over what we have to do, doesn't communicate well with the class, and is always late. Questions on the test have a lot of things that HE thinks. I would NOT recommend him.",
+    "Prof Hill was a hard teacher yet a pretty enjoyable class. We only wrote 4 papers each semester and as long as you wrote them to make sense to the subject you get a good grade. His syllabus says attendance is mandatory, but I probably only went to about half of his classes and still received high marks. He will help you 1 on 1 as well.",
+    "If you have another choice, choose to take this with another professor. He tries to help but isn't very clear with how he teaches. His class is very hard even for students who do pretty well in math. If you struggle with math, take another professor. Don't sacrifice your GPA.",
+    "I don't understand why Coach Sims doesn't have a higher rating because he is a great professor!He makes math very easy to understand and gives you plenty of opportunities to make a good grade in his class!",
+    "Awesome teacher. Learn the material his way and you will be fine. Basic concepts and the tests and quizzes are easy. 8 quizzes and 3 tests and a final",
+    "I've never gotten anything below an A in math since I started college 3 years ago. Nice guy, but not a good math teacher at all. Retook this class with a different professor this semester and I got an A.",
+    "Good lecturer & All I can say is I wish the History Dept would assign him more courses to teach such as 2111!",
+    "His class is amazing. You can't help but learn materials in the class. The tests are all fill in the blank, no word bank or anything, so you really do have to study and come to class to take note.You HAVE to read the documents in order to pass the tests,but it's not really hard. You also have to go to a museum and write a 5 page paper. Easy peasy(:",
+    "GREAT PROFESSOR! I had no interest in history until I took his class. He gets so excited with his teaching that you can't help but get excited, too. Tests are fill in the blank but super easy. No dates to remember. likes lists and names. read the readings in book, just be able to recognize which reading by key words. I would take his class again.",
+    "Hes an average teacher at best. Doesnt really teach much out of the textbook. Usually would just discuss whatever he felt like that did not pertain to the tests. Stay away",
+    "AVOID!!!! I don't think he gets how much of a bad professor he is. He thinks he is being funny, but honestly, it's just really annoying because he does NOT teach. I plead that you avoid this professor unless you enjoy teaching yourself.",
+    "This professor does not teach. He makes you watch videos, and then you discuss them. He barely goes over any actual material, and you'll learn more from just reading yourself than actual class. Attendance isn't mandatory, but he does call out names for participation which is 10% of the overall grade. Doesn't give any help for studying.",
+    "Now that I'm in the middle of another bus prof's class, I realize that Prof Schulzke is a pretty neat dude. Tries to keep it interesting and will respect you if you respect him. Stay involved throughout the semester and enjoy the interactive game days he does! Would def take again (wishing I had)",
+    "Very knowledgeable prof. Tough class but he really tries to keep it interesting (ethical real world issues, games). Extremely fair and reasonable about grading. 10 out of 10 would take again.",
+    "Really enjoyed this class. He gives you a lot of real world applications and keeps lectures interesting even w/a bland topic like acct. Very knowledgeable, funny guy. Be respectful and be involved and you'll do great. Definitely would recommend and would take again.",
+    "If I remember correctly, he told stories in class that weren't relevant to what we were going to be tested on... Could of spent that time teaching us material that we could use on the test...",
+    "He just isn't a great professor. At first, I thought he wasn't that terrible but slowly as the semester went by he kept talking down to students. He will also tell you to do one thing one day and then deny that he said it. His class isn't impossible to pass, but he sure makes it a terrible learning experience"
+]
+labels = [
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "negative",
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative",
+    "negative",
+    "positive",
+    "positive",
+    "positive",
+    "negative",
+    "negative"]
+
+# init a countVectorizer obj to convert the sentences into a matrix of word frequencies
+vectorizer = CountVectorizer()
+
+# use the vectorizer to transform the sentences into a matrix of word frequencies
+X = vectorizer.fit_transform(sentences)
+
+# init a multinomialNB to train the model
+clf = MultinomialNB()
+
+# train the model
+clf.fit(X, labels)
+
+# save the vectorizer and clf objects to disk using pickle
+with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/vectorizer.pkl", "wb") as file:
+    pickle.dump(vectorizer, file)
+
+with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/clf.pkl", "wb") as file:
+    pickle.dump(clf, file)
+
+def rateComment(comment):
+    # load the vectorizer and clf objects from disk
+    with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/vectorizer.pkl", "rb") as file:
+        vectorizer = pickle.load(file)
+
+    with open("/Users/cadepercival/PycharmProjects/BestInstructorAI/clf.pkl", "rb") as file:
+        clf = pickle.load(file)
+
+    new_X = vectorizer.transform([comment])
+    predicted_label = clf.predict(new_X)
+    return predicted_label[0]
+
+
+
+
